@@ -52,7 +52,7 @@ enemy_active = [True] * num_of_enemies  # Tracks whether an enemy is still activ
 
 for i in range(num_of_enemies):
     enemyImg.append(pygame.image.load('enemy.png'))
-    enemyImg[i] = pygame.transform.scale(enemyImg[i], (56, 64))
+    enemyImg[i] = pygame.transform.scale(enemyImg[i], (52, 83))
     enemyX.append(random.randint(0, screen_width - 64))
     enemyY.append(random.randint(50, 150))
     enemyX_change.append(4)
