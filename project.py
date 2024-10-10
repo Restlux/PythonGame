@@ -20,6 +20,12 @@ backgroundImg = pygame.transform.scale(backgroundImg, (screen_width, screen_heig
 # Title and Icon
 pygame.display.set_caption("Space Invaders")
 
+# Load Sounds
+shoot_sound = pygame.mixer.Sound('shoot.wav')
+score_sound = pygame.mixer.Sound('score.wav')
+game_over_sound = pygame.mixer.Sound('game_over.wav')
+enemy_shoot_sound = pygame.mixer.Sound('enemy_shoot.wav')  # Load enemy shoot sound
+
 # Player
 playerImg = pygame.image.load('player.png')
 playerImg = pygame.transform.scale(playerImg, (64, 64))
@@ -27,8 +33,8 @@ playerX = screen_width // 2 - 32
 playerY = screen_height - 100
 playerX_vel = 0
 playerY_vel = 0
-acceleration = 0.2
-friction = 0.98
+acceleration = 0.4
+friction = 0.95
 player_lives = 3
 
 # Enemy
@@ -41,12 +47,12 @@ enemy_bulletX = []
 enemy_bulletY = []
 enemy_bullet_active = []
 enemy_bullet_speed = 5
-num_of_enemies = 6
+num_of_enemies = 9
 enemy_active = [True] * num_of_enemies  # Tracks whether an enemy is still active
 
 for i in range(num_of_enemies):
     enemyImg.append(pygame.image.load('enemy.png'))
-    enemyImg[i] = pygame.transform.scale(enemyImg[i], (64, 64))
+    enemyImg[i] = pygame.transform.scale(enemyImg[i], (56, 64))
     enemyX.append(random.randint(0, screen_width - 64))
     enemyY.append(random.randint(50, 150))
     enemyX_change.append(4)
@@ -57,7 +63,7 @@ for i in range(num_of_enemies):
 
 # Bullet
 bulletImg = pygame.image.load('bullet.png')
-bulletImg = pygame.transform.scale(bulletImg, (32, 32))
+bulletImg = pygame.transform.scale(bulletImg, (3, 9))
 bulletX = 0
 bulletY = playerY
 bulletY_change = 10
@@ -112,12 +118,18 @@ def fire_enemy_bullet(enemy_x, enemy_y, i):
     enemy_bulletX[i] = enemy_x + 16
     enemy_bulletY[i] = enemy_y + 64
     enemy_bullet_active[i] = True  # Mark bullet as active
+    enemy_shoot_sound.play()  # Play enemy shoot sound when bullet is fired
+
+
+def all_enemies_defeated():
+    return all(not enemy for enemy in enemy_active)  # Check if all enemies are inactive
 
 
 # Game Loop
 running = True
-while running:
+game_over = False  # To track if the game is over
 
+while running:
     # Draw the background image
     screen.blit(backgroundImg, (0, 0))
 
@@ -130,6 +142,7 @@ while running:
             if event.key == pygame.K_SPACE and bullet_state == "ready":
                 bulletX = playerX  # Set bullet to player's current position
                 fire_bullet(bulletX, bulletY)
+                shoot_sound.play()  # Play shoot sound when bullet is fired
 
     # Detect keystrokes for movement
     keys = pygame.key.get_pressed()
@@ -171,6 +184,11 @@ while running:
 
         # Enemy Movement
         enemyX[i] += enemyX_change[i]
+
+        # Change direction randomly every 50 frames
+        if random.randint(0, 100) < 1:  # Adjust the chance of changing direction
+            enemyX_change[i] = -enemyX_change[i]  # Reverse direction randomly
+
         if enemyX[i] <= 0:
             enemyX_change[i] = 4
             enemyY[i] += enemyY_change[i]
@@ -199,7 +217,7 @@ while running:
 
         # Check for game over
         if player_lives <= 0:
-            running = False  # End the game
+            game_over = True  # Set game over to true
 
         enemy(enemyX[i], enemyY[i], i)
 
@@ -222,7 +240,12 @@ while running:
             bulletY = playerY
             bullet_state = "ready"
             score_value += 1
+            score_sound.play()  # Play score sound when score increases
             enemy_active[i] = False  # Disable the enemy after it's shot
+
+    # Check if all enemies are defeated
+    if all_enemies_defeated():
+        game_over = True  # Set game over to true
 
     # Draw the player
     player(playerX, playerY)
@@ -231,8 +254,16 @@ while running:
     show_score(textX, textY)
     show_lives(textX, textY)
 
+    # If game over, display the game over text
+    if game_over:
+        game_over_text()
+        game_over_sound.play()  # Play game over sound
+        pygame.display.update()
+        pygame.time.delay(2000)  # Wait for 2 seconds before quitting
+        running = False  # Exit the main loop
+
     # Update the screen
     pygame.display.update()
 
-# Close the game if lives are 0
+# Close the game if lives are 0 or all enemies are shot
 pygame.quit()
