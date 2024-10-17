@@ -1,269 +1,262 @@
 import pygame
+import os
+import time
 import random
-import math
-
-# Initialize pygame
+pygame.font.init()
 pygame.init()
 
-# Get monitor's screen width and height
 infoObject = pygame.display.Info()
-screen_width = infoObject.current_w
-screen_height = infoObject.current_h
+WIDTH = infoObject.current_w 
+HEIGHT = infoObject.current_h - 60
+WIN = pygame.display.set_mode((WIDTH, HEIGHT),pygame.FULLSCREEN)
+pygame.display.set_caption("Cosmic Conquest")
 
-# Create the screen in full-screen mode
-screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
+# Load images
+RED_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy1.png"))
+GREEN_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy2.png"))
+BLUE_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy3.png"))
 
-# Load Background Image and scale it to full-screen size
-backgroundImg = pygame.image.load('background.png')
-backgroundImg = pygame.transform.scale(backgroundImg, (screen_width, screen_height))
+# Player player
+YELLOW_SPACE_SHIP = pygame.image.load(os.path.join("assets", "player.png"))
 
-# Title and Icon
-pygame.display.set_caption("Space Invaders")
+# Lasers
+RED_LASER = pygame.image.load(os.path.join("assets", "bullet.png"))
+GREEN_LASER = pygame.image.load(os.path.join("assets", "bullet.png"))
+BLUE_LASER = pygame.image.load(os.path.join("assets", "bullet.png"))
+YELLOW_LASER = pygame.image.load(os.path.join("assets", "bullet.png"))
 
-# Load Sounds
-shoot_sound = pygame.mixer.Sound('shoot.wav')
-score_sound = pygame.mixer.Sound('score.wav')
-game_over_sound = pygame.mixer.Sound('game_over.wav')
-enemy_shoot_sound = pygame.mixer.Sound('enemy_shoot.wav')  # Load enemy shoot sound
+# Background
+BG = pygame.transform.scale(pygame.image.load(os.path.join("assets", "background.png")), (WIDTH, HEIGHT))
 
-# Player
-playerImg = pygame.image.load('player.png')
-playerImg = pygame.transform.scale(playerImg, (64, 64))
-playerX = screen_width // 2 - 32
-playerY = screen_height - 100
-playerX_vel = 0
-playerY_vel = 0
-acceleration = 0.4
-friction = 0.95
-player_lives = 3
+class Laser:
+    def __init__(self, x, y, img):
+        self.x = x
+        self.y = y
+        self.img = img
+        self.mask = pygame.mask.from_surface(self.img)
 
-# Enemy
-enemyImg = []
-enemyX = []
-enemyY = []
-enemyX_change = []
-enemyY_change = []
-enemy_bulletX = []
-enemy_bulletY = []
-enemy_bullet_active = []
-enemy_bullet_speed = 5
-num_of_enemies = 9
-enemy_active = [True] * num_of_enemies  # Tracks whether an enemy is still active
+    def draw(self, window):
+        window.blit(self.img, (self.x, self.y))
 
-for i in range(num_of_enemies):
-    enemyImg.append(pygame.image.load('enemy.png'))
-    enemyImg[i] = pygame.transform.scale(enemyImg[i], (52, 83))
-    enemyX.append(random.randint(0, screen_width - 64))
-    enemyY.append(random.randint(50, 150))
-    enemyX_change.append(4)
-    enemyY_change.append(40)
-    enemy_bulletX.append(0)
-    enemy_bulletY.append(screen_height + 100)  # Start bullets off-screen
-    enemy_bullet_active.append(False)  # No active bullets at the start
+    def move(self, vel):
+        self.y += vel
 
-# Bullet
-bulletImg = pygame.image.load('bullet.png')
-bulletImg = pygame.transform.scale(bulletImg, (3, 9))
-bulletX = 0
-bulletY = playerY
-bulletY_change = 10
-bullet_state = "ready"
+    def off_screen(self, height):
+        return not(self.y <= height and self.y >= 0)
 
-# Score
-score_value = 0
-font = pygame.font.Font('freesansbold.ttf', 32)
-textX = 10
-textY = 10
-
-# Game Over Text
-over_font = pygame.font.Font('freesansbold.ttf', 64)
+    def collision(self, obj):
+        return collide(self, obj)
 
 
-def show_score(x, y):
-    score = font.render("Score : " + str(score_value), True, (255, 255, 255))
-    screen.blit(score, (x, y))
+class Ship:
+    COOLDOWN = 30
+
+    def __init__(self, x, y, health=100):
+        self.x = x
+        self.y = y
+        self.health = health
+        self.ship_img = None
+        self.laser_img = None
+        self.lasers = []
+        self.cool_down_counter = 0
+
+    def draw(self, window):
+        window.blit(self.ship_img, (self.x, self.y))
+        for laser in self.lasers:
+            laser.draw(window)
+
+    def move_lasers(self, vel, obj):
+        self.cooldown()
+        for laser in self.lasers:
+            laser.move(vel)
+            if laser.off_screen(HEIGHT):
+                self.lasers.remove(laser)
+            elif laser.collision(obj):
+                obj.health -= 10
+                self.lasers.remove(laser)
+
+    def cooldown(self):
+        if self.cool_down_counter >= self.COOLDOWN:
+            self.cool_down_counter = 0
+        elif self.cool_down_counter > 0:
+            self.cool_down_counter += 1
+
+    def shoot(self):
+        if self.cool_down_counter == 0:
+            laser = Laser(self.x, self.y, self.laser_img)
+            self.lasers.append(laser)
+            self.cool_down_counter = 1
+
+    def get_width(self):
+        return self.ship_img.get_width()
+
+    def get_height(self):
+        return self.ship_img.get_height()
 
 
-def show_lives(x, y):
-    lives_text = font.render("Lives : " + str(player_lives), True, (255, 255, 255))
-    screen.blit(lives_text, (x, y + 40))
+class Player(Ship):
+    def __init__(self, x, y, health=100):
+        super().__init__(x, y, health)
+        self.ship_img = YELLOW_SPACE_SHIP
+        self.laser_img = YELLOW_LASER
+        self.mask = pygame.mask.from_surface(self.ship_img)
+        self.max_health = health
 
-
-def game_over_text():
-    over_text = over_font.render("GAME OVER", True, (255, 255, 255))
-    screen.blit(over_text, (screen_width // 2 - 200, screen_height // 2 - 50))
-
-
-def player(x, y):
-    screen.blit(playerImg, (x, y))
-
-
-def enemy(x, y, i):
-    if enemy_active[i]:  # Only draw enemy if it's active
-        screen.blit(enemyImg[i], (x, y))
-
-
-def fire_bullet(x, y):
-    global bullet_state
-    bullet_state = "fire"
-    screen.blit(bulletImg, (x + 16, y + 10))
-
-
-def is_collision(x1, y1, x2, y2, hitbox_radius):
-    distance = math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
-    return distance < hitbox_radius
-
-
-def fire_enemy_bullet(enemy_x, enemy_y, i):
-    enemy_bulletX[i] = enemy_x + 16
-    enemy_bulletY[i] = enemy_y + 64
-    enemy_bullet_active[i] = True  # Mark bullet as active
-    enemy_shoot_sound.play()  # Play enemy shoot sound when bullet is fired
-
-
-def all_enemies_defeated():
-    return all(not enemy for enemy in enemy_active)  # Check if all enemies are inactive
-
-
-# Game Loop
-running = True
-game_over = False  # To track if the game is over
-
-while running:
-    # Draw the background image
-    screen.blit(backgroundImg, (0, 0))
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        # Player bullet control
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE and bullet_state == "ready":
-                bulletX = playerX  # Set bullet to player's current position
-                fire_bullet(bulletX, bulletY)
-                shoot_sound.play()  # Play shoot sound when bullet is fired
-
-    # Detect keystrokes for movement
-    keys = pygame.key.get_pressed()
-
-    # Acceleration based on key presses
-    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-        playerX_vel -= acceleration
-    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-        playerX_vel += acceleration
-    if keys[pygame.K_UP] or keys[pygame.K_w]:
-        playerY_vel -= acceleration
-    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-        playerY_vel += acceleration
-
-    # Apply friction to slow the player down gradually
-    playerX_vel *= friction
-    playerY_vel *= friction
-
-    # Update player position with velocity
-    playerX += playerX_vel
-    playerY += playerY_vel
-
-    # Wrap horizontally
-    if playerX < -64:
-        playerX = screen_width
-    elif playerX > screen_width:
-        playerX = -64
-
-    # Vertical barriers
-    if playerY <= 0:
-        playerY = 0
-    elif playerY >= screen_height - 64:
-        playerY = screen_height - 64
-
-    # Enemy Movement and shooting projectiles
-    for i in range(num_of_enemies):
-        if not enemy_active[i]:  # Skip inactive enemies
-            continue
-
-        # Enemy Movement
-        enemyX[i] += enemyX_change[i]
-
-        # Change direction randomly every 50 frames
-        if random.randint(0, 100) < 1:  # Adjust the chance of changing direction
-            enemyX_change[i] = -enemyX_change[i]  # Reverse direction randomly
-
-        if enemyX[i] <= 0:
-            enemyX_change[i] = 4
-            enemyY[i] += enemyY_change[i]
-        elif enemyX[i] >= screen_width - 64:
-            enemyX_change[i] = -4
-            enemyY[i] += enemyY_change[i]
-
-        # Enemy shooting projectiles
-        if not enemy_bullet_active[i] and random.randint(0, 100) < 5:  # Randomly fire bullets
-            fire_enemy_bullet(enemyX[i], enemyY[i], i)
-
-        # Move enemy bullet
-        if enemy_bullet_active[i]:
-            if enemy_bulletY[i] >= screen_height:  # Deactivate bullet if it goes off-screen
-                enemy_bullet_active[i] = False
+    def move_lasers(self, vel, objs):
+        self.cooldown()
+        for laser in self.lasers:
+            laser.move(vel)
+            if laser.off_screen(HEIGHT):
+                self.lasers.remove(laser)
             else:
-                enemy_bulletY[i] += enemy_bullet_speed  # Move bullet downward
+                for obj in objs:
+                    if laser.collision(obj):
+                        objs.remove(obj)
+                        if laser in self.lasers:
+                            self.lasers.remove(laser)
 
-            # Draw enemy bullet
-            screen.blit(bulletImg, (enemy_bulletX[i], enemy_bulletY[i]))
+    def draw(self, window):
+        super().draw(window)
+        self.healthbar(window)
 
-            # Check for collision between enemy bullet and player
-            if is_collision(enemy_bulletX[i], enemy_bulletY[i], playerX, playerY, 32):
-                player_lives -= 1
-                enemy_bullet_active[i] = False  # Deactivate bullet on hit
+    def healthbar(self, window):
+        pygame.draw.rect(window, (255,0,0), (self.x, self.y + self.ship_img.get_height() + 10, self.ship_img.get_width(), 10))
+        pygame.draw.rect(window, (0,255,0), (self.x, self.y + self.ship_img.get_height() + 10, self.ship_img.get_width() * (self.health/self.max_health), 10))
 
-        # Check for game over
-        if player_lives <= 0:
-            game_over = True  # Set game over to true
 
-        enemy(enemyX[i], enemyY[i], i)
+class Enemy(Ship):
+    COLOR_MAP = {
+                "red": (RED_SPACE_SHIP, RED_LASER),
+                "green": (GREEN_SPACE_SHIP, GREEN_LASER),
+                "blue": (BLUE_SPACE_SHIP, BLUE_LASER)
+                }
 
-    # Player bullet movement
-    if bulletY <= 0:
-        bulletY = playerY
-        bullet_state = "ready"
+    def __init__(self, x, y, color, health=100):
+        super().__init__(x, y, health)
+        self.ship_img, self.laser_img = self.COLOR_MAP[color]
+        self.mask = pygame.mask.from_surface(self.ship_img)
 
-    if bullet_state == "fire":
-        fire_bullet(bulletX, bulletY)
-        bulletY -= bulletY_change
+    def move(self, vel):
+        self.y += vel
 
-    # Check for bullet collision with enemies
-    for i in range(num_of_enemies):
-        if not enemy_active[i]:  # Skip inactive enemies
-            continue
+    def shoot(self):
+        if self.cool_down_counter == 0:
+            laser = Laser(self.x-20, self.y, self.laser_img)
+            self.lasers.append(laser)
+            self.cool_down_counter = 1
 
-        collision = is_collision(bulletX, bulletY, enemyX[i], enemyY[i], 50)  # Larger hitbox radius
-        if collision:
-            bulletY = playerY
-            bullet_state = "ready"
-            score_value += 1
-            score_sound.play()  # Play score sound when score increases
-            enemy_active[i] = False  # Disable the enemy after it's shot
 
-    # Check if all enemies are defeated
-    if all_enemies_defeated():
-        game_over = True  # Set game over to true
+def collide(obj1, obj2):
+    offset_x = obj2.x - obj1.x
+    offset_y = obj2.y - obj1.y
+    return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
 
-    # Draw the player
-    player(playerX, playerY)
+def main():
+    run = True
+    FPS = 60
+    level = 0
+    lives = 5
+    main_font = pygame.font.SysFont("futura", 50)
+    lost_font = pygame.font.SysFont("futura", 60)
 
-    # Show the score and lives
-    show_score(textX, textY)
-    show_lives(textX, textY)
+    enemies = []
+    wave_length = 5
+    enemy_vel = 1
 
-    # If game over, display the game over text
-    if game_over:
-        game_over_text()
-        game_over_sound.play()  # Play game over sound
+    player_vel = 5
+    laser_vel = 5
+
+    player = Player(300, 630)
+
+    clock = pygame.time.Clock()
+
+    lost = False
+    lost_count = 0
+
+    def redraw_window():
+        WIN.blit(BG, (0,0))
+        level_label = main_font.render(f"Level: {level}", 1, (255,255,255))
+
+        WIN.blit(level_label, (10, 10))
+
+        for enemy in enemies:
+            enemy.draw(WIN)
+
+        player.draw(WIN)
+
+        if lost:
+            lost_label = lost_font.render("You Lost!!", 1, (255,255,255))
+            WIN.blit(lost_label, (WIDTH/2 - lost_label.get_width()/2, 350))
+
         pygame.display.update()
-        pygame.time.delay(2000)  # Wait for 2 seconds before quitting
-        running = False  # Exit the main loop
 
-    # Update the screen
-    pygame.display.update()
+    while run:
+        clock.tick(FPS)
+        redraw_window()
 
-# Close the game if lives are 0 or all enemies are shot
-pygame.quit()
+        if lives <= 0 or player.health <= 0:
+            lost = True
+            lost_count += 1
+
+        if lost:
+            if lost_count > FPS * 3:
+                run = False
+            else:
+                continue
+
+        if len(enemies) == 0:
+            level += 1
+            wave_length += 5
+            for i in range(wave_length):
+                enemy = Enemy(random.randrange(50, WIDTH-100), random.randrange(-1500, -100), random.choice(["red", "blue", "green"]))
+                enemies.append(enemy)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                quit()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a] and player.x - player_vel > 0: # left
+            player.x -= player_vel
+        if keys[pygame.K_d] and player.x + player_vel + player.get_width() < WIDTH: # right
+            player.x += player_vel
+        if keys[pygame.K_w] and player.y - player_vel > 0: # up
+            player.y -= player_vel
+        if keys[pygame.K_s] and player.y + player_vel + player.get_height() + 15 < HEIGHT: # down
+            player.y += player_vel
+        if keys[pygame.K_SPACE]:
+            player.shoot()
+
+        for enemy in enemies[:]:
+            enemy.move(enemy_vel)
+            enemy.move_lasers(laser_vel, player)
+
+            if random.randrange(0, 2*60) == 1:
+                enemy.shoot()
+
+            if collide(enemy, player):
+                player.health -= 10
+                enemies.remove(enemy)
+            elif enemy.y + enemy.get_height() > HEIGHT:
+                lives -= 1
+                enemies.remove(enemy)
+
+        player.move_lasers(-laser_vel, enemies)
+
+def main_menu():
+    title_font = pygame.font.SysFont("futura", 70)
+    run = True
+    while run:
+        WIN.blit(BG, (0,0))
+        title_label = title_font.render("Press the mouse to begin...", 1, (255,255,255))
+        WIN.blit(title_label, (WIDTH/2 - title_label.get_width()/2, 350))
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                main()
+    pygame.quit()
+
+
+main_menu()
