@@ -7,17 +7,17 @@ pygame.init()
 
 infoObject = pygame.display.Info()
 WIDTH = infoObject.current_w 
-HEIGHT = infoObject.current_h - 60
+HEIGHT = infoObject.current_h
 WIN = pygame.display.set_mode((WIDTH, HEIGHT),pygame.FULLSCREEN)
 pygame.display.set_caption("Cosmic Conquest")
 
 # Load images
-RED_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy1.png"))
-GREEN_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy2.png"))
-BLUE_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy3.png"))
+enemy1 = pygame.image.load(os.path.join("assets", "enemy1.png"))
+enemy2 = pygame.image.load(os.path.join("assets", "enemy2.png"))
+enemy3 = pygame.image.load(os.path.join("assets", "enemy3.png"))
 
 # Player player
-YELLOW_SPACE_SHIP = pygame.image.load(os.path.join("assets", "player.png"))
+playerShip = pygame.image.load(os.path.join("assets", "player.png"))
 
 # Lasers
 RED_LASER = pygame.image.load(os.path.join("assets", "bullet.png"))
@@ -30,7 +30,7 @@ BG = pygame.transform.scale(pygame.image.load(os.path.join("assets", "background
 
 class Laser:
     def __init__(self, x, y, img):
-        self.x = x
+        self.x = x+15
         self.y = y
         self.img = img
         self.mask = pygame.mask.from_surface(self.img)
@@ -97,7 +97,7 @@ class Ship:
 class Player(Ship):
     def __init__(self, x, y, health=100):
         super().__init__(x, y, health)
-        self.ship_img = YELLOW_SPACE_SHIP
+        self.ship_img = playerShip
         self.laser_img = YELLOW_LASER
         self.mask = pygame.mask.from_surface(self.ship_img)
         self.max_health = health
@@ -126,9 +126,9 @@ class Player(Ship):
 
 class Enemy(Ship):
     COLOR_MAP = {
-                "red": (RED_SPACE_SHIP, RED_LASER),
-                "green": (GREEN_SPACE_SHIP, GREEN_LASER),
-                "blue": (BLUE_SPACE_SHIP, BLUE_LASER)
+                "red": (enemy1, RED_LASER),
+                "green": (enemy2, GREEN_LASER),
+                "blue": (enemy3, BLUE_LASER)
                 }
 
     def __init__(self, x, y, color, health=100):
@@ -141,7 +141,7 @@ class Enemy(Ship):
 
     def shoot(self):
         if self.cool_down_counter == 0:
-            laser = Laser(self.x-20, self.y, self.laser_img)
+            laser = Laser(self.x+15, self.y, self.laser_img)
             self.lasers.append(laser)
             self.cool_down_counter = 1
 
